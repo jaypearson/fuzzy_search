@@ -1,0 +1,49 @@
+{
+    "_id" : ObjectId("5ddd20b13199f4a227fda3b6"),
+    "id" : "149602",
+    "masterHolderId" : "604085",
+    "contractHolderId" : "604085",
+    "srcContractHolderNumber" : "64939",
+    "srcSystem" : "AS4",
+    "primaryFlag" : "N",
+    "status" : "I",
+    "agencyId" : "169",
+    "agencyNumber" : "131001",
+    "address" : [
+        {
+            "addressId" : "10308557",
+            "addressLine1" : "64939 ABC AVE",
+            "addressLine2" : "SUITE 30",
+            "city" : "OCALA",
+            "country" : null,
+            "county" : null,
+            "geoStat" : null,
+            "latitude" : null,
+            "longitude" : null,
+            "state" : "FL",
+            "typeName" : "Billing Address",
+            "zipBox" : null,
+            "zipCode" : "34476",
+            "typeCode" : "30"
+        }
+    ],
+    "contactMethods" : [
+        {
+            "id" : "471033",
+            "contact" : "6493910",
+            "typeName" : "Phone Number",
+            "typeCode" : "10"
+        }
+    ],
+    "name" : [
+        {
+            "id" : "10254737",
+            "firstName" : "First Name 64939",
+            "name" : "Name 64939 Type 40",
+            "suffix" : null,
+            "title" : null,
+            "typeName" : "Bill To Name",
+            "typeCode" : "40"
+        }
+    ]
+}
