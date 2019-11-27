@@ -146,44 +146,38 @@ public class App implements Runnable {
     private void buildSoundexField(MongoDatabase database, MongoCollection<Document> collection) {
         long startTime = System.currentTimeMillis();
         FindIterable<Document> cursor = collection.find().batchSize(100).maxAwaitTime(5, TimeUnit.SECONDS);
+        ArrayList<UpdateOneModel<Document>> bulkOps = new ArrayList<UpdateOneModel<Document>>();
         cursor.iterator().forEachRemaining((doc) -> {
             try {
-                ArrayList<UpdateOneModel<Document>> bulkOps = new ArrayList<UpdateOneModel<Document>>();
-
-                try {
-                    UpdateOneModel<Document> model = new UpdateOneModel<Document>(eq("_id", doc.get("_id")),
-                            addEachToSet("soundex", generateSoundex(doc)));
-                    bulkOps.add(model);
-                    if (bulkOps.size() == 100) {
-                        while (true) {
-                            try {
-                                collection.bulkWrite(bulkOps);
-                            } catch (MongoBulkWriteException ex) {
-                                if (ex.getCode() == 82) {
-                                    System.out.println("No progress made submitting ops...");
-                                    continue;
-                                }
-                            } catch (MongoException ex) {
-                                ex.printStackTrace();
-                                break;
+                UpdateOneModel<Document> model = new UpdateOneModel<Document>(eq("_id", doc.get("_id")),
+                        addEachToSet("soundex", generateSoundex(doc)));
+                bulkOps.add(model);
+                if (bulkOps.size() == 100) {
+                    while (true) {
+                        try {
+                            collection.bulkWrite(bulkOps);
+                        } catch (MongoBulkWriteException ex) {
+                            if (ex.getCode() == 82) {
+                                System.out.println("No progress made submitting ops...");
+                                continue;
                             }
-                            bulkOps.clear();
+                        } catch (MongoException ex) {
+                            ex.printStackTrace();
                             break;
                         }
-                    }
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-                if (bulkOps.size() > 0) {
-                    try {
-                        collection.bulkWrite(bulkOps);
-                    } catch (MongoException ex) {
-                        ex.printStackTrace();
+                        bulkOps.clear();
+                        break;
                     }
                 }
-
             } catch (Exception ex) {
                 ex.printStackTrace();
+            }
+            if (bulkOps.size() > 0) {
+                try {
+                    collection.bulkWrite(bulkOps);
+                } catch (MongoException ex) {
+                    ex.printStackTrace();
+                }
             }
         });
         long endTime = System.currentTimeMillis();
