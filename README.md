@@ -5,6 +5,23 @@ MongoDB provides an easy and convenient method of implementing this type of sear
 
 The easiest and most performant way to accomplish this would be to change the application code to encode and update the soundex array values when updating any of the soundex source field values.  Another approach would be to use MongoDB Change Streams to listen for updates in real time that would subsequently update the soundex array.  Finally a bulk update query could also be used to update the soundex array in all of the documents at the same time.  This is the approach taken by this implementation.  However, this is the least performant approach and should only be used on relatively small collections.
 
+## Soundex Encoding Example
+The Soundex encoding for "Mississippi" is "M221".  This is the value that would be stored in the array.  If the user did not know how to spell Mississippi, then a common error would be to search for common misspellings such as "Misisipi".  The Soundex encoding for "Misisipi" is also "M221".  So when querying given that predicate, the application would query for documents with a soundex array containing "M221".  It is also worth noting that Soundex is case insensitive.
+
+### Sample document metadata
+```json
+{
+  "addresses": [
+    {
+      ...
+      "state": "Mississippi",
+      ...
+    } 
+  ],
+  "soundex": [ "M221", … ]
+}
+```
+
 ## Implementation
 The implementation for this demo is a simple Java 1.8 console application.  It provides the following features:
 * Build encoded soundex array values from multiple source fields
