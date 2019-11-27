@@ -117,13 +117,18 @@ public class App implements Runnable {
 
     private void search(MongoCollection<Document> collection) {
         List<String> soundexValues = new ArrayList<String>();
+        // Loop through provided predicates and calculate soundex encoding
         for (String predicate : searchValues) {
             soundexValues.add(_soundex.encode(predicate));
         }
 
         System.out.println("Querying for predicates: " + searchValues);
         System.out.println("Soundex values: " + soundexValues);
+
+        // Create find cursor using $in with soundex encoded values
         FindIterable<Document> cursor = collection.find(in("soundex", soundexValues));
+
+        // Loop through cursor and output matching documents
         for (Document d : cursor) {
             System.out.println(d.toJson());
         }
@@ -132,8 +137,7 @@ public class App implements Runnable {
     private void ping(MongoDatabase database) {
         System.out.println("Pinging database...");
         long startTime = System.currentTimeMillis();
-        // The MongoDB Drivers are "lazy". The ping command forces it to connect to the
-        // DB.
+        // MongoDB Drivers are "lazy". The ping command forces it to connect to the DB.
         database.runCommand(new Document("ping", 1));
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
@@ -142,27 +146,43 @@ public class App implements Runnable {
     }
 
     private void buildSoundexField(MongoDatabase database, MongoCollection<Document> collection) {
+        // Store for metrics
         long startTime = System.currentTimeMillis();
+
+        // Open a collection scan cursor
+        // Configured batch size as 100 to match bulk write ops batch size
+        // Configured maxAwaitTime to short circuit default long wait on getMore ops
         FindIterable<Document> cursor = collection.find().batchSize(100).maxAwaitTime(5, TimeUnit.SECONDS);
+
+        // Collection to contain bulk write operations
         ArrayList<UpdateOneModel<Document>> bulkOps = new ArrayList<UpdateOneModel<Document>>();
+
+        // Loop through cursor
         cursor.iterator().forEachRemaining((doc) -> {
             try {
+                // Build bulk updateOne model
+                // Matches by _id of each doc
+                // Uses addEachToSet to add soundex encoded values to 'soundex' array
                 UpdateOneModel<Document> model = new UpdateOneModel<Document>(eq("_id", doc.get("_id")),
                         addEachToSet("soundex", generateSoundex(doc)));
+                // Add bulk write model to collection
                 bulkOps.add(model);
+                // Check for full batch of bulk write operations
                 if (bulkOps.size() == 100) {
+                    // Submit the bulk write operation
                     submitBulkOps(collection, bulkOps);
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
         });
+        // Clean up bulk operations collection for any left over operations
         if (bulkOps.size() > 0) {
             submitBulkOps(collection, bulkOps);
         }
+        // Display metrics
         long endTime = System.currentTimeMillis();
         long duration = (endTime - startTime);
-        buildIndexes(database);
         System.out.println("End time: " + new Date() + " Duration: " + duration + "ms");
         System.out.printf("=============== FINISHED =================%n");
     }
@@ -176,16 +196,24 @@ public class App implements Runnable {
     }
 
     private void submitBulkOps(MongoCollection<Document> collection, ArrayList<UpdateOneModel<Document>> bulkOps) {
+        // Loop iteration counter
         int iterations = 0;
+
+        // Loop until we force exit
         while (true) {
+            // Max number of iterations reached -> bail out
             if (iterations > 10) {
                 System.out.println("ERROR: Exceeded 10 tries to submit bulk writes...");
                 return;
             }
             try {
+                // Increment iteration counter
                 iterations++;
+                // Submit bulk write operation
                 collection.bulkWrite(bulkOps);
             } catch (MongoBulkWriteException ex) {
+                // Code 82 indicates that the server did NOT apply any Ops
+                // This represents backpressure and the submission should be retried
                 if (ex.getCode() == 82) {
                     System.out.println("No progress made submitting ops...");
                 } else {
@@ -202,6 +230,7 @@ public class App implements Runnable {
                 ex.printStackTrace();
                 break;
             }
+            // Clear bulkOps collection for next batch of bulk operations
             bulkOps.clear();
             break;
         }
