@@ -32,36 +32,72 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(version = "Fuzzy Search Demo 1.0", header = "%nFuzzy Search Demo%n", description = "Prints usage help and version help when requested.%n")
+@Command(
+  version     = "Fuzzy Search Demo 1.0",
+  header      = "%nFuzzy Search Demo%n",
+  description = "Prints usage help and version help when requested.%n"
+)
 public class App implements Runnable {
-    @Option(names = { "-h", "--help" }, usageHelp = true, description = "display a help message")
+    @Option(
+      names       = { "-h", "--help" },
+      usageHelp   = true,
+      description = "display a help message"
+    )
     private boolean helpRequested = false;
 
-    @Option(names = { "-V", "--version" }, versionHelp = true, description = "display version info")
+    @Option(
+      names       = { "-V", "--version" },
+      versionHelp = true,
+      description = "display version info"
+    )
     boolean versionInfoRequested;
 
-    @Option(names = {
-            "--uri" }, paramLabel = "<uri>", required = false, description = "connection string for destination MongoDB (default: ${DEFAULT-VALUE})")
+    @Option(
+      names       = { "--uri" },
+      paramLabel  = "<uri>",
+      required    = false,
+      description = "connection string for destination MongoDB (default: ${DEFAULT-VALUE})"
+    )
     String uri = "mongodb://localhost:27017/";
 
-    @Option(names = { "-d",
-            "--dbName" }, required = false, paramLabel = "<database name>", description = "name of destination database (default: ${DEFAULT-VALUE})")
+    @Option(
+      names       = { "-d", "--dbName" },
+      required    = false,
+      paramLabel  = "<database name>",
+      description = "name of destination database (default: ${DEFAULT-VALUE})"
+    )
     String dbName = "demo";
 
-    @Option(names = { "-c",
-            "--collectionName" }, required = false, paramLabel = "<collection name>", description = "name of destination collection (default: ${DEFAULT-VALUE})")
+    @Option(
+      names       = { "-c", "--collectionName" },
+      required    = false,
+      paramLabel  = "<collection name>",
+      description = "name of destination collection (default: ${DEFAULT-VALUE})"
+    )
     String collectionName = "fuzzy";
 
-    @Option(names = { "-b",
-            "--build" }, required = false, paramLabel = "<field to soundex>", description = "path of field to build soundex values for; include multiple times for more fields")
+    @Option(
+      names       = { "-b", "--build" },
+      required    = false,
+      paramLabel  = "<field to soundex>",
+      description = "path of field to build soundex values for; include multiple times for more fields"
+    )
     List<String> soundexFields;
 
-    @Option(names = { "-s",
-            "--search" }, required = false, paramLabel = "<search predicate>", description = "soundex search predicate, include multiple times for more predicates")
+    @Option(
+      names       = { "-s", "--search" },
+      required    = false,
+      paramLabel  = "<search predicate>",
+      description = "soundex search predicate, include multiple times for more predicates"
+    )
     List<String> searchValues;
 
-    @Option(names = { "-i",
-            "--index" }, required = false, paramLabel = "build indexes", description = "flag indicating to build soundex index (default: false)")
+    @Option(
+      names       = { "-i", "--index" },
+      required    = false,
+      paramLabel  = "build indexes",
+      description = "flag indicating to build soundex index (default: false)"
+    )
     boolean buildIndexes = false;
 
     private Soundex _soundex = new Soundex();
