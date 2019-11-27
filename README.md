@@ -13,8 +13,10 @@ The implementation for this demo is a simple Java 1.8 console application.  It p
 
 ## Usage
 The application uses the gradle build system.  It will automatically download all necessary dependent libraries.  To build use the appropriate provided gradle wrapper:
+
 Linux/Mac
 > ./gradlew build
+
 Windows
 > gradlew.bat build
 
@@ -29,29 +31,26 @@ Here is a full example that:
 Builds Soundex encodings for the "name.name" and "name.firstName" fields
 Creates the soundex array index (if not already present)
 Queries for matches using the predicate "John" on the database fcci and collection cmch.
-> java -jar build/libs/fuzzy_search.jar \
->     --uri mongodb://localhost:27017 \
->     -b="name.name" -b="name.firstName" \
->     -s=John -i -d fcci -c cmch
+```
+java -jar build/libs/fuzzy_search.jar \
+     --uri mongodb://localhost:27017 \
+     -b="name.name" -b="name.firstName" \
+     -s=John -i -d fcci -c cmch
+```
 
 ## Options
 Multiple options can be combined together in any order.  Most options have default values.  Print out the usage information using the -h option for further information.
-* -h
-: Print out help and usage information
-* -v
-* * Print out version information
-* --uri <Valid MongoDB connection string>
-* -d <database name>
-* * Required if database name not specified in connection string
-* -c <collection name>
-* -b <soundex field name>
-* * Format: "field.field2" where field is an array and field2 is the field in the subdocument elements of the array
-* * Specify -b multiple times, once for each field that need soundex values encoded
-* -i
-* * Build index on soundex array
-* -s <query predicate>
-* * Query soundex array for provided predicate.  The predicate will be encoded by the application.
-* * Multiple predicates can be specified by using -s option multiple times.  They will be combined using the $in operator which effectively operates as a logical OR.
+
+| Option | Description                                                                                                                                                                                                                                                                         |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| -h     | Print out help and usage information                                                                                                                                                                                                                                                |
+| -v     | Print out version information                                                                                                                                                                                                                                                       |
+| --uri  | Valid MongoDB connection string                                                                                                                                                                                                                                                     |
+| -d     | Database name - Required if database name not specified in connection string                                                                                                                                                                                                        |
+| -c     | Collection name                                                                                                                                                                                                                                                                     |
+| -b     | Soundex field name - Format: "field.field2" where field is an array and field2 is the field in the subdocument elements of the array. Specify -b multiple times, once for each field that need soundex values encoded                                                               |
+| -i     | Build index on soundex array                                                                                                                                                                                                                                                        |
+| -s     | Query predicate - Query soundex array for provided predicate.  The predicate will be encoded by the application.  Multiple predicates can be specified by using -s option multiple times.  They will be combined using the $in operator which effectively operates as a logical OR. |
 
 ## Dependencies
 1. MongoDB Synchronous Java Driver version 3.10.1
