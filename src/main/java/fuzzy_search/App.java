@@ -75,12 +75,6 @@ public class App implements Runnable {
         collection.createIndexes(indexes);
     }
 
-    public Document generateDocument() {
-        Document d = new Document();
-
-        return d;
-    }
-
     public void run() {
         // Create connection string
         ConnectionString connectionString = new ConnectionString(uri);
@@ -110,6 +104,10 @@ public class App implements Runnable {
 
         if (soundexFields != null && soundexFields.size() > 0) {
             buildSoundexField(database, collection);
+        }
+
+        if (buildIndexes) {
+            buildIndexes(database);
         }
 
         if (searchValues != null && searchValues.size() > 0) {
@@ -153,44 +151,60 @@ public class App implements Runnable {
                         addEachToSet("soundex", generateSoundex(doc)));
                 bulkOps.add(model);
                 if (bulkOps.size() == 100) {
-                    while (true) {
-                        try {
-                            collection.bulkWrite(bulkOps);
-                        } catch (MongoBulkWriteException ex) {
-                            if (ex.getCode() == 82) {
-                                System.out.println("No progress made submitting ops...");
-                                continue;
-                            }
-                        } catch (MongoException ex) {
-                            ex.printStackTrace();
-                            break;
-                        }
-                        bulkOps.clear();
-                        break;
-                    }
+                    submitBulkOps(collection, bulkOps);
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
-            if (bulkOps.size() > 0) {
-                try {
-                    collection.bulkWrite(bulkOps);
-                } catch (MongoException ex) {
-                    ex.printStackTrace();
-                }
-            }
         });
+        if (bulkOps.size() > 0) {
+            submitBulkOps(collection, bulkOps);
+        }
         long endTime = System.currentTimeMillis();
         long duration = (endTime - startTime);
-        startTime = System.currentTimeMillis();
-        if (buildIndexes) {
-            System.out.println("============= BEGIN CREATING INDEXES ==============");
-            genIndexes(database.getCollection(collectionName));
-            System.out.printf("Created indexes in: %d ms%n", System.currentTimeMillis() - startTime);
-            System.out.println("============= END CREATING INDEXES ==============");
-        }
+        buildIndexes(database);
         System.out.println("End time: " + new Date() + " Duration: " + duration + "ms");
         System.out.printf("=============== FINISHED =================%n");
+    }
+
+    private void buildIndexes(MongoDatabase database) {
+        long startTime = System.currentTimeMillis();
+        System.out.println("============= BEGIN CREATING INDEXES ==============");
+        genIndexes(database.getCollection(collectionName));
+        System.out.printf("Created indexes in: %d ms%n", System.currentTimeMillis() - startTime);
+        System.out.println("============= END CREATING INDEXES ==============");
+    }
+
+    private void submitBulkOps(MongoCollection<Document> collection, ArrayList<UpdateOneModel<Document>> bulkOps) {
+        int iterations = 0;
+        while (true) {
+            if (iterations > 10) {
+                System.out.println("ERROR: Exceeded 10 tries to submit bulk writes...");
+                return;
+            }
+            try {
+                iterations++;
+                collection.bulkWrite(bulkOps);
+            } catch (MongoBulkWriteException ex) {
+                if (ex.getCode() == 82) {
+                    System.out.println("No progress made submitting ops...");
+                } else {
+                    System.out.println("BulkWriteException: " + ex.getMessage());
+                }
+                try {
+                    // Increasing wait times for each failed write
+                    Thread.sleep(50 * iterations);
+                } catch (InterruptedException iex) {
+                    // Ignore Thread InterruptedException
+                }
+                continue;
+            } catch (MongoException ex) {
+                ex.printStackTrace();
+                break;
+            }
+            bulkOps.clear();
+            break;
+        }
     }
 
     private List<String> generateSoundex(Document doc) {
