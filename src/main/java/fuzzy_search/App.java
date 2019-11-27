@@ -38,6 +38,11 @@ import picocli.CommandLine.Option;
   description = "Prints usage help and version help when requested.%n"
 )
 public class App implements Runnable {
+
+    private final int BULK_RETRY_TIMES               = 10;
+    private final int BULK_WRITE_WAIT_MULTIPLIER     = 50;
+    private final int SERVER_BACKPRESSURE_ERROR_CODE = 82;
+
     @Option(
       names       = { "-h", "--help" },
       usageHelp   = true,
@@ -103,11 +108,13 @@ public class App implements Runnable {
     private Soundex _soundex = new Soundex();
 
     private void genIndexes(MongoCollection<Document> collection) {
-        ArrayList<IndexModel> indexes = new ArrayList<IndexModel>();
-        Document index = new Document();
-        index.append("soundex", 1);
-        indexes.add(new IndexModel(index, new IndexOptions().name("soundexIndex")));
-
+        List<IndexModel> indexes = new ArrayList<>();
+        indexes.add(
+            new IndexModel(
+                new Document().append("soundex", 1),
+                new IndexOptions().name("soundexIndex")
+            )
+        );
         collection.createIndexes(indexes);
     }
 
@@ -172,18 +179,17 @@ public class App implements Runnable {
 
     private void ping(MongoDatabase database) {
         System.out.println("Pinging database...");
-        long startTime = System.currentTimeMillis();
+        final long startTime = System.currentTimeMillis();
         // MongoDB Drivers are "lazy". The ping command forces it to connect to the DB.
         database.runCommand(new Document("ping", 1));
-        long endTime = System.currentTimeMillis();
-        long duration = endTime - startTime;
+        long duration = System.currentTimeMillis() - startTime;
         System.out.println("Ping time: " + duration + "ms");
         System.out.printf("Initial connection time: %d ms%n", duration);
     }
 
     private void buildSoundexField(MongoDatabase database, MongoCollection<Document> collection) {
         // Store for metrics
-        long startTime = System.currentTimeMillis();
+        final long startTime = System.currentTimeMillis();
 
         // Open a collection scan cursor
         // Configured batch size as 100 to match bulk write ops batch size
@@ -206,7 +212,9 @@ public class App implements Runnable {
                 // Check for full batch of bulk write operations
                 if (bulkOps.size() == 100) {
                     // Submit the bulk write operation
-                    submitBulkOps(collection, bulkOps);
+                    if (submitBulkOps(collection, bulkOps)) {
+                      bulkOps.clear();
+                    }
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -217,63 +225,55 @@ public class App implements Runnable {
             submitBulkOps(collection, bulkOps);
         }
         // Display metrics
-        long endTime = System.currentTimeMillis();
-        long duration = (endTime - startTime);
+        long duration = System.currentTimeMillis() - startTime;
         System.out.println("End time: " + new Date() + " Duration: " + duration + "ms");
         System.out.printf("=============== FINISHED =================%n");
     }
 
     private void buildIndexes(MongoDatabase database) {
-        long startTime = System.currentTimeMillis();
+        final long startTime = System.currentTimeMillis();
         System.out.println("============= BEGIN CREATING INDEXES ==============");
         genIndexes(database.getCollection(collectionName));
         System.out.printf("Created indexes in: %d ms%n", System.currentTimeMillis() - startTime);
         System.out.println("============= END CREATING INDEXES ==============");
     }
+    private boolean submitBulkOps(final MongoCollection<Document> collection, final List<UpdateOneModel<Document>> bulkOps) {
+        return submitBulkOps(collection, bulkOps, 1);
+    }
 
-    private void submitBulkOps(MongoCollection<Document> collection, ArrayList<UpdateOneModel<Document>> bulkOps) {
-        // Loop iteration counter
-        int iterations = 0;
-
-        // Loop until we force exit
-        while (true) {
-            // Max number of iterations reached -> bail out
-            if (iterations > 10) {
-                System.out.println("ERROR: Exceeded 10 tries to submit bulk writes...");
-                return;
+    private boolean submitBulkOps(final MongoCollection<Document> collection, final List<UpdateOneModel<Document>> bulkOps, final int iterations) {
+        boolean success = false;
+        if (iterations > BULK_RETRY_TIMES) {
+            System.out.println("ERROR: Exceeded " + BULK_RETRY_TIMES + " tries to submit bulk writes...");
+            return success;
+        }
+        try {
+            // Submit bulk write operation
+            collection.bulkWrite(bulkOps);
+            success = true;
+        } catch (MongoBulkWriteException ex) {
+            // Code 82 indicates that the server did NOT apply any Ops
+            // This represents backpressure and the submission should be retried
+            if (ex.getCode() == SERVER_BACKPRESSURE_ERROR_CODE) {
+                System.out.println("No progress made submitting ops...");
+            } else {
+                System.out.println("BulkWriteException: " + ex.getMessage());
             }
             try {
-                // Increment iteration counter
-                iterations++;
-                // Submit bulk write operation
-                collection.bulkWrite(bulkOps);
-            } catch (MongoBulkWriteException ex) {
-                // Code 82 indicates that the server did NOT apply any Ops
-                // This represents backpressure and the submission should be retried
-                if (ex.getCode() == 82) {
-                    System.out.println("No progress made submitting ops...");
-                } else {
-                    System.out.println("BulkWriteException: " + ex.getMessage());
-                }
-                try {
-                    // Increasing wait times for each failed write
-                    Thread.sleep(50 * iterations);
-                } catch (InterruptedException iex) {
-                    // Ignore Thread InterruptedException
-                }
-                continue;
-            } catch (MongoException ex) {
-                ex.printStackTrace();
-                break;
+                // Increasing wait times for each failed write
+                Thread.sleep(BULK_WRITE_WAIT_MULTIPLIER * iterations);
+                return submitBulkOps(collection, bulkOps, iterations + 1);
+            } catch (InterruptedException iex) {
+                // Ignore Thread InterruptedException
             }
-            // Clear bulkOps collection for next batch of bulk operations
-            bulkOps.clear();
-            break;
+        } catch (MongoException ex) {
+            ex.printStackTrace();
         }
+        return success;
     }
 
     private List<String> generateSoundex(Document doc) {
-        List<String> results = new ArrayList<String>();
+        List<String> results = new ArrayList<>();
         // Loop through each field indicated to build soundex values for
         for (String field : soundexFields) {
             String[] path = field.split(Pattern.quote("."));
